@@ -6,7 +6,7 @@ __author__ = 'shouzhi chen'
 LOG_DEBUG= 3
 LOG_INFO = 2
 LOG_ERR = 1
-__debug = LOG_INFO
+__debug = LOG_DEBUG
 __no_color = False
 
 def  color_print(color, infos):
@@ -86,7 +86,7 @@ def is_changed_by_author(repo, pattern, pretty_format, file):
         error("BUG: repo is null")
         return None
     
-    git_cmd = GIT_CMD.format(repo.pattern, pretty_format, file)
+    git_cmd = GIT_CMD.format(repo, pattern, pretty_format, file)
     debug("git cmd: " + git_cmd)
 
     try:
@@ -164,12 +164,15 @@ def scan_dir(start_dir, ext):
 
     return
 
-def main():
+def main(dir=None):
     global SCAN_REPO_PATH
     global FORMAT 
     info("Program is runing ......")
     _log_file = '__git_repo_list.txt'
-    _start_dir = os.getcwd()
+    if None != dir:
+        _start_dir = dir
+    else:
+        _start_dir = os.getcwd()
     _repos = list_repo(_start_dir, _log_file)
 
     if None != _repos:
@@ -195,8 +198,4 @@ TEAM_NAME = "SD4"
 FORMAT = "%ae"
 
 if __name__ == "__main__":
-    main()
-
-
-
-
+    main(None)
