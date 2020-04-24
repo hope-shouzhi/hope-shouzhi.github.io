@@ -1,7 +1,8 @@
 import os
 import subprocess
 import re
-from com.android.monkeyrunner import MonkeyRunner, MonkeyDevice
+import xml.etree.ElementTree as ET
+import sys
 
 LOG_DEBUG = 3
 LOG_INFO = 2
@@ -193,7 +194,55 @@ def install_apk(dir):
 def main(dir):
     pass
 
+def config_perm_xml(xml_file_path, perm_info):
+    doc = ET.parse(xml_file_path)
+    xml_root = doc.getroot()
+    except_element = ET.SubElement(xml_root, "exception")
+    except_element.attrib = {"package":"%s" % perm_info[0]}
+    debug("package:  " + perm_info.remove(perm_info[0]))
+    except_element.text = '\n \t'
+    for i in len(perm_info):
+        debug(perm_info[i])
+        permision_element = ET.SubElement(except_element, "permission")
+        permision_element.attrib = {"name":"%s" % perm_info[i], "fixed":"false"}
+        permision_element.tail ='\n \t'
+        #except_element.append(permision_element)
+    
+    except_element.tail = '\n'
+    #xml_root.append(except_element)
+    
+    doc.write(xml_file_path)
+    return
 
 if __name__ == "__main__":
     root_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
     debug("root_path " + root_path)
+    root_path = os.getcwd()
+    debug("root_path " + root_path)
+    if len(sys.argv) > 1:
+        xml_file_name = sys.argv[1]
+    else:
+        xml_file_name = 'permissions.xml'
+    xml_file_path = os.path.join(root_path, xml_file_name)
+    doc = ET.parse(xml_file_path)
+    xml_root = doc.getroot()
+    debug(xml_root.tag )
+    if xml_root.tag in "exceptions":
+        except_element = ET.SubElement(xml_root, "exception")
+        except_element.attrib = {"package":"package_name"}
+        except_element.text = '\n\t'
+        for i in range(4):
+            debug(i)
+            permision_element = ET.SubElement(except_element, "permission")
+            permision_element.attrib = {"name":"permission_name", "fixed":"false"}
+            permision_element.tail ='\n\t'
+            #except_element.append(permision_element)
+        
+        except_element.tail = '\n'
+        #xml_root.append(except_element)
+
+        doc.write(xml_file_path)
+
+    
+    
+
