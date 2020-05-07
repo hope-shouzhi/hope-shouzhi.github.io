@@ -12,7 +12,7 @@ except ImportError:
 LOG_DEBUG = 3
 LOG_INFO = 2
 LOG_ERR = 1
-__debug = LOG_DEBUG
+__debug = LOG_INFO
 __no_color = False
 __author__ = 'shouzhi chen'
 
@@ -95,7 +95,7 @@ def get_permission_info(aapt_path, apk_path):
 
         if len(stdout):
             lines = stdout.decode()
-            debug("result: " + lines)
+            debug("result: " + lines)   
 
             if len(lines) > 0:
                 for line in lines.splitlines():
@@ -108,7 +108,7 @@ def get_permission_info(aapt_path, apk_path):
                         debug(tmp[1])
                         permission_info.append(tmp[1])
 
-                    perm = re.search('uses-permission:', line)
+                    perm = re.search('uses-permission:', line)  
                     if perm:
                         debug("perm: " + line)
                         tmp = line.split(" ")
@@ -128,7 +128,7 @@ def get_permission_info(aapt_path, apk_path):
 
 
 def get_apk_info(aapt_path, apk_path):
-    CMD = '{} dump badging {} | findstr /c:launchable-activity /c:package'
+    CMD = '{} dump badging "{}" | findstr /c:launchable-activity /c:package'
     debug("APK PATH: " + apk_path)
 
     aapt_cmd = CMD.format(aapt_path, apk_path)
@@ -146,7 +146,7 @@ def get_apk_info(aapt_path, apk_path):
             if len(lines):
                 for line in lines.splitlines():
                     line = str(line)
-                    package = re.search('package:', line)
+                    package = re.search('package: ', line)
                     if package:
                         debug("package: " + line)
                         tmp = line.split(" ")
@@ -174,13 +174,16 @@ def install_apk(dir):
     info("Connecting device ...")
     adb_cmd("adb wait-for-device")
     info("Connected device")
+    num_apks = len(os.listdir(dir))
+    i = 1
 
     for apk in os.listdir(dir):
         apk_path = os.path.join(dir, apk)
-        info("installing %s" % apk_path)
+        info("installing %s (%d/%d)" % (apk_path, i, num_apks))
         install_cmd = 'adb install -g %s' % apk_path
         adb_cmd(install_cmd)
-        info("installing %s sunccessful" % apk_path)
+        info("installing %s (%d/%d) sunccessful" % (apk_path, i, num_apks))
+        i = i + 1
 
     return
 
@@ -245,7 +248,7 @@ if __name__ == "__main__":
         aapt = 'aapt.exe'
         aapt_path = os.path.join(root_path, 'android_cmd_tools')
         aapt_path = os.path.join(aapt_path, 'build-tools')
-        aapt_path = os.path.join(aapt_path, '29.0.3')
+        aapt_path = os.path.join(aapt_path, '28.0.3')
         aapt_path = os.path.join(aapt_path, aapt)
 
         info("aapt_path: " + aapt_path)
