@@ -1,8 +1,13 @@
 import os
 import subprocess
 import re
-import xml.etree.ElementTree as ET
 import sys
+import random
+import time
+try:
+    import xml.etree.cElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
 
 LOG_DEBUG = 3
 LOG_INFO = 2
@@ -66,6 +71,7 @@ def error(infos):
     return
 
 def adb_cmd(cmd):
+    debug(cmd)
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
         ret = proc.wait()
@@ -79,22 +85,22 @@ def adb_cmd(cmd):
 
 def get_permission_info(aapt_path, apk_path):
     CMD = '{} dump permissions {}'
-    debug(''.join("APK PATH: ", apk_path))
-
+    #debug(''.join("APK PATH: ", apk_path))
     aapt_cmd = CMD.format(aapt_path, apk_path)
     debug("CMD: " + aapt_cmd)
     permission_info = []
     try:
         proc = subprocess.Popen(aapt_cmd, stdout=subprocess.PIPE, shell=True)
-        ret = proc.wait()
+        stdout, stderr = proc.communicate()
 
-        if ret == 0:
-            lines = proc.stdout.read().decode()
+        if len(stdout):
+            lines = stdout.decode()
             debug("result: " + lines)
 
-            if len(lines):
-                for line in lines:
+            if len(lines) > 0:
+                for line in lines.splitlines():
                     line = str(line)
+                    debug(line)
                     package = re.search('package:', line)
                     if package:
                         debug("package: " + line)
@@ -107,7 +113,7 @@ def get_permission_info(aapt_path, apk_path):
                         debug("perm: " + line)
                         tmp = line.split(" ")
                         debug(tmp[1])
-                        permission_info.append(tmp[1])
+                        permission_info.append(tmp[1][6:-1])
                 return permission_info
 
             else:
@@ -138,7 +144,7 @@ def get_apk_info(aapt_path, apk_path):
             debug("result: " + lines)
 
             if len(lines):
-                for line in lines:
+                for line in lines.splitlines():
                     line = str(line)
                     package = re.search('package:', line)
                     if package:
@@ -160,7 +166,7 @@ def get_apk_info(aapt_path, apk_path):
         else:
             raise Exception("error")
     except Exception as error:
-        error("ERROR: get apk info failed")
+        debug("ERROR: get apk info failed")
         return None, None
 
 def install_apk(dir):
@@ -169,35 +175,38 @@ def install_apk(dir):
     adb_cmd("adb wait-for-device")
     info("Connected device")
 
-    install_cmd = 'adb install {}'
     for apk in os.listdir(dir):
         apk_path = os.path.join(dir, apk)
         info("installing %s" % apk_path)
-        install_cmd.format(apk_path)
+        install_cmd = 'adb install -g %s' % apk_path
         adb_cmd(install_cmd)
         info("installing %s sunccessful" % apk_path)
 
     return
 
-class CommentedTreeBuilder ():
-    def __init__(self, html = 0, target = None):
-        ET.XMLTreeBuilder.__init__(self, html, target)
-        self._parser.CommentHandler = self.handle_comment
-
-    def handle_comment(self, data):
-        self._target.start(ET.Comment, {})
-        self._target.data(data)
-        self._target.end(ET.Comment)
-
+#
+def start_apk(package, apks_info, secs):
+    if len(apks_info):
+        while True:    
+            index = random.randint(0,(len(apks_info)-1))
+            debug('index：' + str(index))
+            item = apks_info.get(package[index], None)
+            if item is not None:
+                adb_cmd('adb shell am start -n %s/%s' % (item[0], item[2]))
+                time.sleep(secs)
+    else:
+        error("NO apk info found!")
+    return
 
 def config_perm_xml(xml_file_path, perm_info):
-    doc = ET.parse(xml_file_path, parser = CommentedTreeBuilder())
+    doc = ET.parse(xml_file_path)
     xml_root = doc.getroot()
     except_element = ET.SubElement(xml_root, "exception")
     except_element.attrib = {"package":"%s" % perm_info[0]}
-    debug("package:  " + perm_info.remove(perm_info[0]))
+    debug("package: " + perm_info[0])
+    perm_info.remove(perm_info[0])
     except_element.text = '\n \t'
-    for i in len(perm_info):
+    for i in range(len(perm_info)):
         debug(perm_info[i])
         permision_element = ET.SubElement(except_element, "permission")
         permision_element.attrib = {"name":"%s" % perm_info[i], "fixed":"false"}
@@ -211,27 +220,64 @@ def config_perm_xml(xml_file_path, perm_info):
     return
 
 if __name__ == "__main__":
-    root_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
-    debug("root_path " + root_path)
     root_path = os.getcwd()
-    debug("root_path " + root_path)
+    package_list_file ='package_list.csv'
+    apks_info = {}
+    package_list = []
+    if os.path.exists(package_list_file):
+        with open(package_list_file, 'r') as f:
+            for line in f:
+                line = str(line)
+                debug(line)
+                debug(len(list(line.strip('\n').split(','))))
+                pack_name, apk_name, apk_main_actitivity, null = line.strip('\n').split(',')
+                package_list.append(pack_name)
+                debug(package_list)
+                apk_info = []
+                apk_info.append(pack_name)
+                apk_info.append(apk_name)
+                apk_info.append(apk_main_actitivity)
+                apks_info.setdefault(pack_name, apk_info)
+                debug(apks_info)
 
-    xml_file_name = 'permissions.xml'
-    aapt = 'aapt.exe'
-    aapt_path = os.path.join(root_path, 'android_cmd_tools')
-    aapt_path = os.path.join(aapt_path, 'build-tools')
-    aapt_path = os.path.join(aapt_path, '29.0.3')
-    aapt_path = os.path.join(aapt_path, aapt)
+    else:
+        debug("root_path " + root_path)
+        aapt = 'aapt.exe'
+        aapt_path = os.path.join(root_path, 'android_cmd_tools')
+        aapt_path = os.path.join(aapt_path, 'build-tools')
+        aapt_path = os.path.join(aapt_path, '29.0.3')
+        aapt_path = os.path.join(aapt_path, aapt)
 
-    info("aapt_path: " + aapt_path)
-    apk_dir = os.path.join(root_path, "apk")
-    for apk in  os.listdir(apk_dir):
-        apk_path = os.path.join(apk_dir, apk)
-        package_name, main_activity = get_apk_info(aapt_path, apk_path)
-        info('apk_info %s, %s' % package_name, main_activity)
+        info("aapt_path: " + aapt_path)
+        apk_dir = os.path.join(root_path, "apk")
+        if os.path.exists(apk_dir):
+            for apk in  os.listdir(apk_dir):
+                apk_path = os.path.join(apk_dir, apk)
+                info("apk_path: " + apk_path)
+                package_name, main_activity = get_apk_info(aapt_path, apk_path)
+                if package_name is not None:
+                    package_list.append(package_name)
+                    apk_info = "apk info package name: {}, main activity: {}"
+                    apk_info = apk_info.format(package_name, main_activity)
+                    info(apk_info)
+                    each_apk = []
+                    each_apk.append(package_name)
+                    each_apk.append(apk)
+                    each_apk.append(main_activity)
+                    apks_info.setdefault(package_name, each_apk)
 
+            with open(package_list_file, 'a') as f:
+                for pack in package_list:
+                    item = 'package name: {}, pack info: {}'
+                    item = item.format(pack, apks_info.get(pack, ''))
+                    for tmp in apks_info.get(pack, ''):
+                        f.write(tmp + ',')
+                    f.write('\n')
+                    info(item)
 
-    #xml_file_path = os.path.join(root_path, xml_file_name)
-    #config_perm_xml(xml_file_path, perm_info)
+            install_apk(apk_dir)
 
+        else:
+            error("APK DIR IS NOT existed.")
+    start_apk(package_list, apks_info, 5)
 
